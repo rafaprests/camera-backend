@@ -1,6 +1,6 @@
 #servidor flask
 
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 import os
 from datetime import datetime
 
@@ -22,6 +22,10 @@ def upload_image():
     path = os.path.join(UPLOAD_FOLDER, filename)
     image.save(path)
     return f'Imagem {filename} salva com sucesso!', 200
+
+@app.route("/uploads/<path:filename>")
+def serve_file(filename):
+    return send_from_directory("uploads", filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
