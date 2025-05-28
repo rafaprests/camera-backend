@@ -1,42 +1,67 @@
-from flask import Flask, request, send_from_directory, render_template_string
-import os
+from flask import Flask, request, jsonify
+import cloudinary
+import cloudinary.uploader
+import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-@app.route('/')
-def home():
-    # Lista os arquivos na pasta de uploads
-    files = os.listdir(UPLOAD_FOLDER)
-    files = [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+# Configurar Cloudinary (substitua pelos seus dados)
+cloudinary.config(
+    cloud_name = 'dk89d49gv',
+    api_key = '152896376356339',
+    api_secret = 'ayaGH2aJmzhcYShhLl_DbQ49Sm8',
+    secure = True
+)
 
-    # Template HTML simples com links para as imagens
-    html = """
-    <h1>Imagens Salvas</h1>
-    <ul>
-        {% for file in files %}
-        <li><a href="{{ url_for('serve_file', filename=file) }}" target="_blank">{{ file }}</a></li>
-        {% endfor %}
-    </ul>
-    """
-    return render_template_string(html, files=files)
+# Criar DB simples SQLite (se não existir)
+def init_db():
+    conn = sqlite3.connect('videos.db')
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS videos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT,
+            url TEXT,
+            upload_date TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
 
 @app.route('/upload', methods=['POST'])
-def upload_image():
-    if 'image' not in request.files:
-        return 'Nenhuma imagem enviada', 400
-    image = request.files['image']
-    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-    filename = f"{timestamp}_{image.filename}"
-    path = os.path.join(UPLOAD_FOLDER, filename)
-    image.save(path)
-    return f'Imagem {filename} salva com sucesso!', 200
+def upload():
+    if 'video' not in request.files:
+        return jsonify({'error': 'Nenhum arquivo enviado'}), 400
 
-@app.route("/uploads/<path:filename>")
-def serve_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    video = request.files['video']
+
+    # Upload para Cloudinary
+    result = cloudinary.uploader.upload_large(video, resource_type="video")
+
+    url = result.get('secure_url')
+
+    # Salvar no DB
+    conn = sqlite3.connect('videos.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO videos (filename, url, upload_date) VALUES (?, ?, ?)', 
+              (video.filename, url, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': 'Vídeo enviado com sucesso!', 'url': url})
+
+@app.route('/videos')
+def videos():
+    conn = sqlite3.connect('videos.db')
+    c = conn.cursor()
+    c.execute('SELECT id, filename, url, upload_date FROM videos ORDER BY upload_date DESC')
+    videos_list = c.fetchall()
+    conn.close()
+
+    return jsonify([{'id': v[0], 'filename': v[1], 'url': v[2], 'upload_date': v[3]} for v in videos_list])
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', port=5000)
