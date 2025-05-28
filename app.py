@@ -1,6 +1,4 @@
-#servidor flask
-
-from flask import Flask, request, send_from_directory
+from flask import Flask, request, send_from_directory, render_template_string
 import os
 from datetime import datetime
 
@@ -10,7 +8,20 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/')
 def home():
-    return 'Servidor online!'
+    # Lista os arquivos na pasta de uploads
+    files = os.listdir(UPLOAD_FOLDER)
+    files = [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))]
+
+    # Template HTML simples com links para as imagens
+    html = """
+    <h1>Imagens Salvas</h1>
+    <ul>
+        {% for file in files %}
+        <li><a href="{{ url_for('serve_file', filename=file) }}" target="_blank">{{ file }}</a></li>
+        {% endfor %}
+    </ul>
+    """
+    return render_template_string(html, files=files)
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -25,7 +36,7 @@ def upload_image():
 
 @app.route("/uploads/<path:filename>")
 def serve_file(filename):
-    return send_from_directory("uploads", filename)
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
