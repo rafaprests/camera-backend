@@ -39,7 +39,7 @@ def upload():
     video = request.files['video']
 
     # Upload para Cloudinary
-    result = cloudinary.uploader.upload_large(video, resource_type="video")
+    result = cloudinary.uploader.upload_large(video.stream, resource_type="video")
 
     url = result.get('secure_url')
 
